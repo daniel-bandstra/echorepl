@@ -1,7 +1,5 @@
 (in-package :echorepl)
 
-(defparameter *latency* 6805) ;; as measured by the jack_delay utility, for instance
-
 ;; the MOMENT struct has a fixnum and a fractional part,
 ;; because really big FLOATs don't count accurately
 
