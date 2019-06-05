@@ -29,3 +29,8 @@
   (t (:default "/usr/lib/x86_64-linux-gnu/libsndfile")))
 
 (use-foreign-library sndfile)
+
+(define-foreign-library jack
+  (t (:default "libjack")))
+
+(use-foreign-library jack)

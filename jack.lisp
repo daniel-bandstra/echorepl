@@ -9,11 +9,6 @@
 
 (defparameter *sample-rate* 44100)
 
-(define-foreign-library jack
-  (t (:default "libjack")))
-
-(use-foreign-library jack)
-
 ;; starting and stopping jack
 
 (defconstant +jack-no-start-server+ #x01)
