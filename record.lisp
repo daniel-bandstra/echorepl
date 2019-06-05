@@ -79,7 +79,8 @@
     (setf play-fun (compile-score *score* *clip-store*))
     (if *score*
 	(pedal-color 0 8 0)
-	(pedal-color 0 0 0))
+	(progn (pedal-color 0 0 0)
+	       (setf parent-modulus 0)))
     (signal-score-update))
   
   (defun set-play-fun (&optional fun)
