@@ -7,8 +7,6 @@
 (defctype time-t :uint64)
 (defvar time-t :uint64)
 
-(defparameter *sample-rate* 44100)
-
 ;; starting and stopping jack
 
 (defconstant +jack-no-start-server+ #x01)

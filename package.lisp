@@ -19,7 +19,17 @@
    load-project
    ))
 
-;; foreign library definitions
+;;; variables to edit for your setup
+
+(defparameter *sample-rate* 44100) ;; this also gets set when Jack starts up
+
+(defparameter *latency* 6805)
+;; This variable is a number of whole samples or frames. You can measure this
+;; with the jack_delay utility and a patch cable.
+
+;;; foreign library definitions
+
+;; homegrown packages
 
 (define-foreign-library engine
   (t (:default #.(namestring
@@ -32,6 +42,8 @@
 		  (asdf:system-relative-pathname 'echorepl "pedal/libpedal")))))
 
 (use-foreign-library pedal)
+
+;; library dependencies
 
 (define-foreign-library sndfile
   (t (:default "/usr/lib/x86_64-linux-gnu/libsndfile")))
