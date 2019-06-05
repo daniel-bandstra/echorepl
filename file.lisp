@@ -1,10 +1,5 @@
 (in-package :echorepl)
 
-(define-foreign-library sndfile
-  (t (:default "/usr/lib/x86_64-linux-gnu/libsndfile")))
-
-(use-foreign-library sndfile)
-
 (defctype sf-count-t :int64)
 
 (defconstant +sf-read+ #x10)

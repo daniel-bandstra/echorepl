@@ -25,3 +25,7 @@
 
 (use-foreign-library engine)
 
+(define-foreign-library sndfile
+  (t (:default "/usr/lib/x86_64-linux-gnu/libsndfile")))
+
+(use-foreign-library sndfile)
