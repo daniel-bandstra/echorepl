@@ -14,6 +14,7 @@
       (input-clip (empty-clip)) ;; place-holder
       (output-start (number-moment 0))
       (clip-start (number-moment 0))
+      (parent-modulus 0)
 
       ;; for signal-score-update
       (emacs-connection (if (find-package 'swank)
@@ -30,13 +31,13 @@
   
   (defun signal-score-update ()
     (let ((event `(:ed-rpc-no-wait
-  		   ,(swank::symbol-name-for-emacs 'echorepl-update-score)
-  		   nil)))
+		   ,(swank::symbol-name-for-emacs 'echorepl-update-score)
+		   nil)))
       (etypecase emacs-connection
-  	(swank::multithreaded-connection
-  	 (swank::send (swank::mconn.control-thread emacs-connection) event))
-  	(swank::singlethreaded-connection
-  	 (swank::dispatch-event emacs-connection event))
+	(swank::multithreaded-connection
+	 (swank::send (swank::mconn.control-thread emacs-connection) event))
+	(swank::singlethreaded-connection
+	 (swank::dispatch-event emacs-connection event))
 	(null))))
   
   ;; recording samples, with interpolation
@@ -92,18 +93,18 @@
       (0 (setf clip-start time)
 	 (format t "~&Record~%")
 	 (pedal-color 12 0 0))
-      (1 (let* ((parent-modulus (score-modulus *score* *clip-store*))
-		(new-clip
-		 (create-clip input-clip
-			      clip-start
-			      time
-			      parent-modulus)))
+      (1 (let ((new-clip
+		(create-clip input-clip
+			     clip-start
+			     time
+			     parent-modulus)))
 	   (if (zerop (modulus new-clip)) ;; probably an accidental button-tap
 	       (decf state) ;; so keep recording
 	       (progn
 		 (if (zerop parent-modulus)
 		     (setf output-start (if (moment< time clip-start)
-					    time clip-start))
+					    time clip-start)
+			   parent-modulus (modulus new-clip))
 		     (setf (offset new-clip)
 			   (let ((big-offset (moment- (if (moment< time clip-start)
 							  time
@@ -133,8 +134,8 @@
   (defun monitor ()
     (setf monitor (not monitor))
     (format t "~&Turn monitor ~a~%" (if monitor
-					 "on"
-					 "off")))
+					"on"
+					"off")))
   
   (defun master-reverse ()
     (reverse-time)
