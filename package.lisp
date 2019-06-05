@@ -19,11 +19,19 @@
    load-project
    ))
 
+;; foreign library definitions
+
 (define-foreign-library engine
   (t (:default #.(namestring
 		(asdf:system-relative-pathname 'echorepl "engine/libengine")))))
 
 (use-foreign-library engine)
+
+(define-foreign-library pedal
+  (t (:default #.(namestring
+		  (asdf:system-relative-pathname 'echorepl "pedal/libpedal")))))
+
+(use-foreign-library pedal)
 
 (define-foreign-library sndfile
   (t (:default "/usr/lib/x86_64-linux-gnu/libsndfile")))

@@ -1,11 +1,5 @@
 (in-package :echorepl)
 
-(define-foreign-library pedal
-  (t (:default #.(namestring
-		  (asdf:system-relative-pathname 'echorepl "pedal/libpedal")))))
-
-(use-foreign-library pedal)
-
 ;;; C Functions
 
 ;; opening and closing the pedal
