@@ -1,4 +1,4 @@
-SUBDIRS = pedal sample tape
+SUBDIRS = pedal engine
 
 all:	$(SUBDIRS)
 
