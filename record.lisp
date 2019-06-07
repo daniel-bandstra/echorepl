@@ -1,5 +1,18 @@
 (in-package :echorepl)
 
+;; thread-do, to put resource-intensive things on a back burner
+
+(defmacro thread-do (&rest body)
+  (let ((result (gensym))
+	(thread (gensym)))
+    `(let* ((,result nil)
+	    (,thread
+	     (make-thread (lambda ()
+			    (setf ,result
+				  (progn ,@body))))))
+       (join-thread ,thread)
+       ,result)))
+
 ;; main record/loop/play farrago
 
 (let (
@@ -76,7 +89,8 @@
   ;; playing the score
 
   (defun play-score ()
-    (setf play-fun (compile-score *score* *clip-store*))
+    (setf play-fun (thread-do
+		    (compile-score *score* *clip-store*)))
     (if *score*
 	(pedal-color 0 8 0)
 	(progn (pedal-color 0 0 0)
@@ -95,10 +109,10 @@
 	 (format t "~&Record~%")
 	 (pedal-color 12 0 0))
       (1 (let ((new-clip
-		(create-clip input-clip
-			     clip-start
-			     time
-			     parent-modulus)))
+		(thread-do (create-clip input-clip
+					clip-start
+					time
+					parent-modulus))))
 	   (if (zerop (modulus new-clip)) ;; probably an accidental button-tap
 	       (decf state) ;; so keep recording
 	       (progn
