@@ -44,7 +44,7 @@
 ;; library dependencies
 
 (define-foreign-library sndfile
-  (t (:default "/usr/lib/x86_64-linux-gnu/libsndfile")))
+  (t (:default "libsndfile")))
 
 (use-foreign-library sndfile)
 
