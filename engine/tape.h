@@ -20,16 +20,12 @@ struct tape {
   nframes_t fadeout_start_pos;
   nframes_t fadeout_end_pos;
   sample_t splice;
-
-  // for play functions
-  moment offset;
-  nframes_t modulus;
 };
 
 struct tape *create_tape(nframes_t);
 
 void delete_tape(struct tape *);
 
-void pos_play (sample_t *, nframes_t, struct tape *, int64_t, sample_t);
+void pos_play (sample_t *, struct tape *, int64_t, sample_t);
 
 #endif

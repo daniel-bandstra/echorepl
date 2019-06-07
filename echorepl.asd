@@ -8,10 +8,10 @@
   :depends-on ("cffi" "bordeaux-threads" "trivial-garbage")
   :serial t
   :components ((:file "package")
+	       (:file "callback")
 	       (:file "jack")
 	       (:file "time")
 	       (:file "pedal")
-	       (:file "sample")
 	       (:file "clip")
 	       (:file "play")
 	       (:file "record")

@@ -6,7 +6,6 @@
       ;; state variables
       (running nil)
       (state 0)
-      (monitor nil)
 
       ;; playback, timing, and clips
       (play-fun #'play-null)
@@ -15,30 +14,29 @@
       (output-start (number-moment 0))
       (clip-start (number-moment 0))
       (parent-modulus 0)
+      (process nil)
 
       ;; for signal-score-update
       (emacs-connection (if (find-package 'swank)
-			    swank::*emacs-connection*))
-
-
-      )
+			    swank::*emacs-connection*)))
   
-  (declare (boolean running monitor)
+  (declare (boolean running)
 	   (fixnum state)
 	   (single-float master-gain)
 	   (clip input-clip)
 	   (moment output-start clip-start))
   
   (defun signal-score-update ()
-    (let ((event `(:ed-rpc-no-wait
-		   ,(swank::symbol-name-for-emacs 'echorepl-update-score)
-		   nil)))
-      (etypecase emacs-connection
-	(swank::multithreaded-connection
-	 (swank::send (swank::mconn.control-thread emacs-connection) event))
-	(swank::singlethreaded-connection
-	 (swank::dispatch-event emacs-connection event))
-	(null))))
+    (if emacs-connection
+	(let ((event `(:ed-rpc-no-wait
+		       ,(swank::symbol-name-for-emacs 'echorepl-update-score)
+		       nil)))
+	  (etypecase emacs-connection
+	    (swank::multithreaded-connection
+	     (swank::send (swank::mconn.control-thread emacs-connection) event))
+	    (swank::singlethreaded-connection
+	     (swank::dispatch-event emacs-connection event))
+	    (null)))))
   
   ;; recording samples, with interpolation
   (let ((prev-sample 0.0)
@@ -62,10 +60,12 @@
 		 (loop
 		    for i fixnum from (1+ (frame moment-a)) upto (frame moment-b)
 		    for n single-float from (- 1.0 (fraction moment-a)) by 1.0 do
-		      (sample-write (samples input-clip)
-				    (the fixnum (mod i tape-len))
-				    (+ sample-a (* s-diff
-						   (/ n t-diff))))))))
+		      (setf (mem-ref (samples input-clip)
+				     'sample-t
+				     (the fixnum (* (mod i tape-len)
+						    #.(foreign-type-size 'sample-t))))
+			    (+ sample-a (* s-diff
+					   (/ n t-diff))))))))
 	(declare (inline r-s))
 	(if (moment< prev-moment moment)
 	    (r-s prev-sample prev-moment sample moment)
@@ -132,48 +132,19 @@
     (format t "~&Undo~%")
     (pedal-blink 12 8 0))
   
-  (defun monitor ()
-    (setf monitor (not monitor))
-    (format t "~&Turn monitor ~a~%" (if monitor
-					"on"
-					"off")))
-  
   (defun master-reverse ()
     (reverse-time)
     (format t "~&Reverse~%"))
   
-  ;; The Callback
-
-  (defcallback jack-callback :int
-      ((count nframes-t)
-       (arg :pointer))
-    (declare (ignore arg)
-	     (fixnum count)
-	     (optimize (speed 3) (space 0) (safety 0)
-		       (debug 0) (compilation-speed 0)))
-    (let ((in (input-buffer count))
-	  (out (output-buffer count))
-	  (time (last-frame-time)))
-      (declare (fixnum time))
-
-      (if monitor
-	  (copy-samples out in count)
-	  (zero-samples out count))
-      
-      (loop
-	 for i fixnum below count
-	 for frame fixnum from time do
-	   (let* ((frame (the fixnum (logand frame
-					     #.(1- (expt 2 32)))))
-		  (play-now (tick frame))
-		  (rec-now (frame-moment frame)))
-	     (declare (moment play-now rec-now))
-	     ;; record input
-	     (record-sample (sample-read in i) rec-now)
-	     ;; play output
-	     (funcall (the function play-fun)
-		      out i play-now output-start master-gain))))
-    0)
+  (setf process
+	(lambda (sample frame out)
+	  (declare (optimize (speed 3) (space 0) (safety 0)
+			     (debug 0) (compilation-speed 0)))
+	  (let ((play-now (tick frame))
+		(rec-now (frame-moment frame)))
+	    (record-sample sample rec-now)
+	    (funcall (the function play-fun)
+		     out play-now output-start master-gain))))
   
   (defun start-recording (&optional (buffer-length 600))
     (if running
@@ -183,7 +154,7 @@
 	   ;; recording setup
 	   (reset-tick)
 	   (play-score)
-	   (if (start-jack "echorepl" 'jack-callback)
+	   (if (start-jack "echorepl" process)
 	       (progn
 		 (setf running t
 		       input-clip
@@ -222,7 +193,6 @@
 		 (format t "~&All done!~%")
 		 (sleep 0.1)
 		 (setf state 0
-		       monitor nil
 		       master-gain 1.0
 		       input-clip (empty-clip)
 		       output-start (number-moment 0)

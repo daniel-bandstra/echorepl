@@ -1,6 +1,7 @@
 (in-package :echorepl)
 
-;; the MOMENT struct has a fixnum and a fractional part,
+;; Echorepl keeps track of its own time as a series of moments.
+;; The MOMENT struct has a fixnum and a fractional part,
 ;; because really big FLOATs don't count accurately
 
 (defstruct (moment (:constructor moment (frame fraction))
@@ -56,14 +57,15 @@
 
 ;; in what follows, 'frame' refers to frame-time as tracked by Jack.
 
-(let* ((now (number-moment -1))
+(let* ((latency (+ *latency* *jack-buffer-size*))
+       (now (number-moment -1))
 
        ;; rate
        (rate (number-moment 1))
        (reverse nil)
        
        ;; translating jack frame to time
-       (frame-moment-length (* *latency* 2))
+       (frame-moment-length (* latency 2))
        (frame-moment-array (make-array frame-moment-length
 				       :initial-element (number-moment 0)
 				       :element-type 'moment)))
@@ -77,7 +79,8 @@
     (setf now (number-moment -1)
 	  rate (number-moment 1)
 	  reverse nil
-	  frame-moment-length (* *latency* 2)
+	  latency (+ *latency* *jack-buffer-size*)
+	  frame-moment-length (* latency 2)
 	  frame-moment-array (make-array frame-moment-length
 					 :initial-element (number-moment 0)
 					 :element-type 'moment))
@@ -86,7 +89,7 @@
   (defun tick (frame)
     (declare (fixnum frame)
 	     (optimize (speed 3) (space 0) (safety 0)
-		       (debug 1) (compilation-speed 0)))
+		       (debug 0) (compilation-speed 0)))
     
     ;; update and return the time
     (let ((pos (mod frame frame-moment-length)))
@@ -102,7 +105,7 @@
   (defun frame-moment (frame)
     (declare (fixnum frame))
     "Translate FRAME to a moment."
-    (let* ((frame-ago (logand (- frame *latency*)
+    (let* ((frame-ago (logand (- frame latency)
 			      #.(1- (expt 2 32))))
 	   (pos (mod frame-ago frame-moment-length)))
       (declare (fixnum frame-ago pos))
@@ -141,9 +144,3 @@
 
 (defun now-moment ()
   (usecs-moment (usecs)))
-
-;; c-moment with be useful under the hood
-
-(defcstruct c-moment
-  (frame :long)
-  (fraction :float))

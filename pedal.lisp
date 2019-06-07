@@ -130,4 +130,4 @@
 		 (values :nothing (number-moment 0)))))))
 
 ;; try to open the pedal
-(pedal-open "/dev/ttyUSB0")
+(pedal-open *pedal-port*)

@@ -1,12 +1,5 @@
 (in-package :echorepl)
 
-(defctype sample-t :float)
-(defvar sample-t :float)
-(defctype nframes-t :uint32)
-(defvar nframes-t :uint32)
-(defctype time-t :uint64)
-(defvar time-t :uint64)
-
 ;; starting and stopping jack
 
 (defconstant +jack-no-start-server+ #x01)
@@ -120,16 +113,30 @@
 
 ;; Jack Functions for Lisp
 
-(let ((jack-running nil)
+;; The main function here is (start-jack "name" process-fun). PROCESS-FUN is a function
+;; that takes the arguments (sample frame out-ptr), i.e. a single sample, that
+;; sample's frame-time according to Jack, and a pointer to which a single output sample
+;; could be written. Then there's (stop-jack), of course.
+
+(let (
+      ;; thread stuff
+      (jack-running nil)
+      (thread nil)
+      (so *standard-output*)
+      
+      ;; jack pointers
+      (callback-info (null-pointer))
       (client (null-pointer))
       (input (null-pointer))
-      (output (null-pointer))
-      (so *standard-output*))
+      (output (null-pointer)))
 
+  (defun jack-running ()
+    jack-running)
+  
   ;; setup and tear-down
   
   (defun connect-outputs ()
-    (if jack-running
+    (if (jack-running)
 	(let ((ports (jack-get-ports client
 				     (null-pointer)
 				     (null-pointer)
@@ -147,7 +154,7 @@
 	    (jack-free ports)))))
 
   (defun connect-input (port-number)
-    (if jack-running
+    (if (jack-running)
 	(let ((ports (jack-get-ports client
 				     (null-pointer)
 				     (null-pointer)
@@ -161,73 +168,100 @@
 			  (jack-port-name input))
 	    (jack-free ports)))))
 
-  (defun start-jack (name callback)
-    (if jack-running
+  (defun start-jack (name process)
+    (if (jack-running)
 	(progn (format so "~&Jack is already running.~%")
 	       t)
-	(progn (setf client (with-foreign-object (status :int)
-			      (jack-client-open name
-						+jack-no-start-server+
-						status))
-		     input (jack-port-register client
-					       "input"
-					       +jack-default-audio-type+
-					       +jack-port-is-input+
-					       0)
-		     output (jack-port-register client
-						"output"
-						+jack-default-audio-type+
-						+jack-port-is-output+
-						0))
-	       (if (null-pointer-p client)
-		   (progn (format so "~&Could not open Jack.~%")
-			  nil)
-		   (progn
-		     (setf jack-running t)
-		     (jack-on-shutdown client
-				       (get-callback '*jack-shutdown-callback*)
-				       (null-pointer))
-		     (jack-set-process-callback client
-						(get-callback callback)
-						(null-pointer))
-		     (jack-activate client)
-		     (connect-outputs)
-		     (connect-input 0)
-		     (setf *sample-rate* (jack-get-sample-rate client))
-		     t)))))
+	(progn
+	  (setf
+	   jack-running t
+	   callback-info (new-callback-info *jack-buffer-size*)
+	   client (with-foreign-object (status :int)
+		      (jack-client-open name
+					+jack-no-start-server+
+					status))
+	   input (jack-port-register client
+				     "input"
+				     +jack-default-audio-type+
+				     +jack-port-is-input+
+				     0)
+	   output (jack-port-register client
+				      "output"
+				      +jack-default-audio-type+
+				      +jack-port-is-output+
+				      0)
+	   (foreign-slot-value callback-info '(:struct callback-info) 'client)
+	   client
+	   (foreign-slot-value callback-info '(:struct callback-info) 'in-port)
+	   input
+	   (foreign-slot-value callback-info '(:struct callback-info) 'out-port)
+	   output)
+	  (if (null-pointer-p client)
+	      (progn (format so "~&Could not open Jack.~%")
+		     nil)
+	      (progn
+		(setf
+		 thread
+		 (make-thread
+		  (lambda ()
+		    (declare (optimize (speed 3) (space 0) (safety 0)
+				       (debug 0) (compilation-speed 0)))
+		    (loop while jack-running do
+			 (let* ((frame (get-sample-frame callback-info))
+				(sample (get-sample callback-info))
+				(ptr (get-out-pointer callback-info frame)))
+			   (funcall (the function process)
+				    sample
+				    frame
+				    ptr))))))
+		(jack-on-shutdown client
+				  (get-callback '*jack-shutdown-callback*)
+				  (null-pointer))
+		(jack-set-process-callback client
+					   (foreign-symbol-pointer
+					    "echorepl_callback")
+					   callback-info)
+		(jack-activate client)
+		(connect-outputs)
+		(connect-input 0)
+		(setf *sample-rate* (jack-get-sample-rate client))
+		t)))))
 
   (defun stop-jack ()
-    (if jack-running
-	(jack-client-close client))
-    (setf jack-running nil))
-
-  ;; Functions used in the process callback
-
-  (defun input-buffer (count)
-    (jack-port-get-buffer input count))
-
-  (defun output-buffer (count)
-    (jack-port-get-buffer output count))
-
-  (defun last-frame-time ()
-    (jack-last-frame-time client))
+    (cond
+      (jack-running (setf jack-running nil)
+		    (handler-case
+			(if thread (join-thread thread))
+		      (t (c)
+			(format so "~&Caught error:~%~a~%" c)))
+		    (setf thread nil)
+		    (jack-client-close client)
+		    (delete-callback-info callback-info))))
 
   ;; Time Functions
 
   (defun usecs ()
-    (if jack-running
+    (if (jack-running)
 	(jack-get-time client)
 	0))
 
   (defun usecs-frame (usecs)
-    (if jack-running
+    (if (jack-running)
 	(jack-time-to-frames client usecs)
 	0))
 
   (defun frame-usecs (frame)
-    (if jack-running
+    (if (jack-running)
 	(jack-frames-to-time client frame)
 	0))
 
-  (defun jack-running ()
-    jack-running))
+  ;; software monitoring
+  (defun monitor ()
+      (if (jack-running)
+	  (setf
+	   (foreign-slot-value callback-info '(:struct callback-info) 'monitor)
+	   (if
+	    (zerop (foreign-slot-value callback-info '(:struct callback-info)
+				       'monitor))
+	    1
+	    0)))))

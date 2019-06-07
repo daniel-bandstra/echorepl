@@ -16,7 +16,7 @@
 ;; here, a C array of samples, plus information about where the important sound begins
 
 (defcstruct tape
-  "the medium of audio recording"
+    "the medium of audio recording"
   ;; the samples
   (tape-len nframes-t)
   (samples :pointer)
@@ -28,12 +28,7 @@
 
   (fadeout-start-pos nframes-t)
   (fadeout-end-pos nframes-t)
-  (splice sample-t)
-
-  ;; for play functions
-  (offset (:struct c-moment))
-  (modulus nframes-t)
-  )
+  (splice sample-t))
 
 (defcfun "create_tape" :pointer
   (tape-len nframes-t))
@@ -41,14 +36,13 @@
 (defcfun "delete_tape" :void
   (tape :pointer))
 
-(defun pos-play (dst index tape pos gain)
-  (declare (fixnum index pos)
+(defun pos-play (dst tape pos gain)
+  (declare (fixnum pos)
 	   (single-float gain)
 	   (optimize (speed 3) (space 0) (safety 0)
 		     (debug 0) (compilation-speed 0)))
   (foreign-funcall "pos_play"
-		   :pointer dst :unsigned-int index
-		   :pointer tape :long pos :float gain :void))
+		   :pointer dst :pointer tape :long pos :float gain :void))
 
 ;; a "clip" is tape plus some timing information
 
@@ -73,6 +67,8 @@
   (tape (null-pointer)) ;; a pointer to a struct
   
   ;; synchronization
+  (offset (number-moment 0) :type moment)
+  (modulus 0 :type fixnum)
   (parent-modulus 0 :type fixnum))
 
 ;; accessing tape values
@@ -82,21 +78,6 @@
 
 (defun samples (clip)
   (foreign-slot-value (tape clip) '(:struct tape) 'samples))
-
-(defun offset (clip)
-  (let  ((c-offset (foreign-slot-value (tape clip) '(:struct tape) 'offset)))
-    (moment (getf c-offset 'frame)
-	    (getf c-offset 'fraction))))
-
-(defun set-offset (clip moment)
-  (let ((m-ptr (foreign-slot-pointer (tape clip) '(:struct tape) 'offset)))
-    (setf (foreign-slot-value m-ptr '(:struct c-moment) 'frame)
-	  (frame moment)
-	  (foreign-slot-value m-ptr '(:struct c-moment) 'fraction)
-	  (fraction moment)))
-  moment)
-
-(defsetf offset set-offset)
 
 (defmacro getter-and-setter (name)
   (let ((setter (intern (concatenate 'string "set-" (symbol-name name)))))
@@ -115,7 +96,6 @@
 (getter-and-setter fadeout-start-pos)
 (getter-and-setter fadeout-end-pos)
 (getter-and-setter splice)
-(getter-and-setter modulus)
 
 ;; clip basic timing and position setup
 
@@ -178,15 +158,14 @@
   (let ((tape (tape clip))
 	(tape-len (tape-len clip)))
     (declare (fixnum tape-len))
-    (lambda (dst index time)
-      (declare (fixnum index)
-	       (moment time)
+    (lambda (dst time)
+      (declare (moment time)
 	       (optimize (speed 3) (space 0) (safety 0)
 			 (debug 0) (compilation-speed 0)))
       (let ((pos-a (the fixnum (mod (frame time) tape-len)))
 	    (pos-b (the fixnum (mod (1+ (frame time)) tape-len))))
-	(pos-play dst index tape pos-a (- 1.0 (fraction time)))
-	(pos-play dst index tape pos-b (fraction time))))))
+	(pos-play dst tape pos-a (- 1.0 (fraction time)))
+	(pos-play dst tape pos-b (fraction time))))))
 
 (defun create-clip (input-clip
 		    start
@@ -213,20 +192,20 @@
 	      (dst (samples new-clip)))
 	  (loop for i fixnum below first-chunk do
 	       (progn
-		 (funcall input-play-fun dst i clip-start)
+		 (funcall input-play-fun (mem-aptr dst 'sample-t i) clip-start)
 		 (incf (frame clip-start))))
 	  (make-thread
 	   (lambda ()
 	     (sleep (/ first-chunk *sample-rate*))
 	     (loop for i fixnum from first-chunk below (tape-len new-clip) do
 		  (progn
-		    (funcall input-play-fun dst i clip-start)
+		    (funcall input-play-fun (mem-aptr dst 'sample-t i) clip-start)
 		    (incf (frame clip-start)))))))
 	new-clip)
       ;; clock is going backwards
       (let* ((end (copy-moment end))
 	     (edge-time (number-moment (+ *default-fudge-factor*
-						   *default-half-splice*)))
+					  *default-half-splice*)))
 	     (clip-start (moment- end edge-time))
 	     (moment-len (moment- start end))
 	     (clip-len (+ (frame moment-len)
@@ -241,13 +220,13 @@
 	  (loop
 	     for i fixnum from first-spot below (tape-len new-clip) do
 	       (progn
-		 (funcall input-play-fun dst i end)
+		 (funcall input-play-fun (mem-aptr dst 'sample-t i) end)
 		 (incf (frame end))))
 	  (make-thread
 	   (lambda ()
 	     (sleep (/ (+ first-spot clip-len) *sample-rate*))
 	     (loop for i fixnum below first-spot do
 		  (progn
-		    (funcall input-play-fun dst i clip-start)
+		    (funcall input-play-fun (mem-aptr dst 'sample-t i) clip-start)
 		    (incf (frame clip-start)))))))
 	new-clip)))
