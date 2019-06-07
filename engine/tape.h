@@ -1,7 +1,6 @@
 #ifndef TAPE_H
 #define TAPE_H
 
-#include "moment.h"
 #include <jack/types.h>
 
 typedef jack_nframes_t nframes_t;
