@@ -71,7 +71,7 @@
     (declare (moment elapsed)
 	     (fixnum pos-a pos-b)
 	     (single-float gain-b))
-    (lambda (dst time start gain)
+    (lambda (dst i time start gain)
       (declare (single-float gain)
 	       (optimize (speed 3) (space 0) (safety 0)
 			 (debug 0) (compilation-speed 0)))
@@ -79,8 +79,8 @@
 	    pos-a (frame elapsed)
 	    pos-b (1+ pos-a)
 	    gain-b (* gain (fraction elapsed)))
-      (pos-play dst tape pos-a (- gain gain-b))
-      (pos-play dst tape pos-b gain-b)
+      (pos-play dst i tape pos-a (- gain gain-b))
+      (pos-play dst i tape pos-b gain-b)
       modulus)))
 
 (defun cycle (fun)
@@ -94,12 +94,12 @@
 	     (fixnum modulus)
 	     (moment prev-start this-start next-start)
 	     (boolean first-run))
-    (lambda (dst time start gain)
+    (lambda (dst i time start gain)
       (declare (optimize (speed 3) (space 0) (safety 0)
 			 (debug 0) (compilation-speed 0)))
       (cond
 	(first-run
-	 (setf modulus (funcall fun dst time start gain) ;; set start times
+	 (setf modulus (funcall fun dst i time start gain) ;; set start times
 	       prev-start (copy-structure start)
 	       this-start (moment (+ (frame prev-start) modulus)
 				  (fraction prev-start))
@@ -116,15 +116,15 @@
 		 (frame this-start)
 		 (frame prev-start)
 		 (- (frame prev-start) modulus))))
-      (funcall fun dst time prev-start gain)
-      (funcall fun dst time this-start gain)
-      (funcall fun dst time next-start gain))))
+      (funcall fun dst i time prev-start gain)
+      (funcall fun dst i time this-start gain)
+      (funcall fun dst i time next-start gain))))
 
 (defun series (&rest play-funs)
   "Return a function that plays the functions in PLAY-FUN sequentially."
   (let ((sub-start (number-moment 0)))
     (declare (moment sub-start))
-    (lambda (dst time start gain)
+    (lambda (dst i time start gain)
       (declare (moment time start)
 	       (single-float gain)
 	       (optimize (speed 3) (space 0) (safety 0)
@@ -135,7 +135,7 @@
 	 for fun in play-funs do
 	   (incf (frame sub-start)
 		 (the fixnum
-		      (funcall (the function fun) dst time sub-start gain)))
+		      (funcall (the function fun) dst i time sub-start gain)))
 	 finally
 	   (return (the fixnum (- (frame sub-start) (frame start))))))))
 
@@ -158,22 +158,22 @@
 	   (function fun))
   (let ((new-gain (db-gain db)))
     (declare (single-float new-gain))
-    (lambda (dst time start old-gain)
+    (lambda (dst i time start old-gain)
       (declare (moment time start)
 	       (single-float old-gain)
 	       (optimize (speed 3) (space 0) (safety 0)
 			 (debug 0) (compilation-speed 0)))
-      (funcall fun dst time start (* new-gain old-gain)))))
+      (funcall fun dst i time start (* new-gain old-gain)))))
 
 (defun mute (fun)
   "Return a function that doesn't play FUN, but passes on its timing info."
   (declare (function fun))
-  (lambda (dst time start gain)
+  (lambda (dst i time start gain)
     (declare (moment time start)
 	     (ignore gain)
 	     (optimize (speed 3) (space 0) (safety 0)
 		       (debug 0) (compilation-speed 0)))
-    (funcall fun dst time start 0.0)))
+    (funcall fun dst i time start 0.0)))
 
 (defun score-modulus (score clips)
   "Find how long SCORE should take to play."

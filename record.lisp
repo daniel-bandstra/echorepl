@@ -151,14 +151,14 @@
     (format t "~&Reverse~%"))
   
   (setf process
-	(lambda (sample frame out)
+	(lambda (sample frame dst i)
 	  (declare (optimize (speed 3) (space 0) (safety 0)
 			     (debug 0) (compilation-speed 0)))
 	  (let ((play-now (tick frame))
 		(rec-now (frame-moment frame)))
 	    (record-sample sample rec-now)
 	    (funcall (the function play-fun)
-		     out play-now output-start master-gain))))
+		     dst i play-now output-start master-gain))))
   
   (defun start-recording (&optional (buffer-length 600))
     (if running

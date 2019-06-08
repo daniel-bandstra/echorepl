@@ -25,6 +25,6 @@ struct tape *create_tape(nframes_t);
 
 void delete_tape(struct tape *);
 
-void pos_play (sample_t *, struct tape *, int64_t, sample_t);
+void pos_play (sample_t *, nframes_t, struct tape *, int64_t, sample_t);
 
 #endif

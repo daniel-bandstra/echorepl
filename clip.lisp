@@ -16,7 +16,7 @@
 ;; here, a C array of samples, plus information about where the important sound begins
 
 (defcstruct tape
-    "the medium of audio recording"
+  "the medium of audio recording"
   ;; the samples
   (tape-len nframes-t)
   (samples :pointer)
@@ -36,13 +36,14 @@
 (defcfun "delete_tape" :void
   (tape :pointer))
 
-(defun pos-play (dst tape pos gain)
-  (declare (fixnum pos)
+(defun pos-play (dst i tape pos gain)
+  (declare (fixnum pos i)
 	   (single-float gain)
 	   (optimize (speed 3) (space 0) (safety 0)
 		     (debug 0) (compilation-speed 0)))
   (foreign-funcall "pos_play"
-		   :pointer dst :pointer tape :long pos :float gain :void))
+		   :pointer dst nframes-t i
+		   :pointer tape :long pos :float gain :void))
 
 ;; a "clip" is tape plus some timing information
 
@@ -158,14 +159,14 @@
   (let ((tape (tape clip))
 	(tape-len (tape-len clip)))
     (declare (fixnum tape-len))
-    (lambda (dst time)
+    (lambda (dst i time)
       (declare (moment time)
 	       (optimize (speed 3) (space 0) (safety 0)
 			 (debug 0) (compilation-speed 0)))
       (let ((pos-a (the fixnum (mod (frame time) tape-len)))
 	    (pos-b (the fixnum (mod (1+ (frame time)) tape-len))))
-	(pos-play dst tape pos-a (- 1.0 (fraction time)))
-	(pos-play dst tape pos-b (fraction time))))))
+	(pos-play dst i tape pos-a (- 1.0 (fraction time)))
+	(pos-play dst i tape pos-b (fraction time))))))
 
 (defun create-clip (input-clip
 		    start
@@ -192,14 +193,14 @@
 	      (dst (samples new-clip)))
 	  (loop for i fixnum below first-chunk do
 	       (progn
-		 (funcall input-play-fun (mem-aptr dst 'sample-t i) clip-start)
+		 (funcall input-play-fun dst i clip-start)
 		 (incf (frame clip-start))))
 	  (make-thread
 	   (lambda ()
 	     (sleep (/ first-chunk *sample-rate*))
 	     (loop for i fixnum from first-chunk below (tape-len new-clip) do
 		  (progn
-		    (funcall input-play-fun (mem-aptr dst 'sample-t i) clip-start)
+		    (funcall input-play-fun dst i clip-start)
 		    (incf (frame clip-start)))))))
 	new-clip)
       ;; clock is going backwards
@@ -220,13 +221,13 @@
 	  (loop
 	     for i fixnum from first-spot below (tape-len new-clip) do
 	       (progn
-		 (funcall input-play-fun (mem-aptr dst 'sample-t i) end)
+		 (funcall input-play-fun dst i end)
 		 (incf (frame end))))
 	  (make-thread
 	   (lambda ()
 	     (sleep (/ (+ first-spot clip-len) *sample-rate*))
 	     (loop for i fixnum below first-spot do
 		  (progn
-		    (funcall input-play-fun (mem-aptr dst 'sample-t i) clip-start)
+		    (funcall input-play-fun dst i clip-start)
 		    (incf (frame clip-start)))))))
 	new-clip)))

@@ -177,9 +177,9 @@
 	   jack-running t
 	   callback-info (new-callback-info *jack-buffer-size*)
 	   client (with-foreign-object (status :int)
-		      (jack-client-open name
-					+jack-no-start-server+
-					status))
+		    (jack-client-open name
+				      +jack-no-start-server+
+				      status))
 	   input (jack-port-register client
 				     "input"
 				     +jack-default-audio-type+
@@ -199,7 +199,13 @@
 	  (if (null-pointer-p client)
 	      (progn (format so "~&Could not open Jack.~%")
 		     nil)
-	      (progn
+	      (let ((dst (foreign-slot-value callback-info
+					     '(:struct callback-info)
+					     'out-buf))
+		    (divisor (foreign-slot-value callback-info
+						 '(:struct callback-info)
+						 'buffer-size)))
+		(declare (fixnum divisor))
 		(setf
 		 thread
 		 (make-thread
@@ -208,12 +214,13 @@
 				       (debug 0) (compilation-speed 0)))
 		    (loop while jack-running do
 			 (let* ((frame (get-sample-frame callback-info))
-				(sample (get-sample callback-info))
-				(ptr (get-out-pointer callback-info frame)))
+				(sample (get-sample callback-info)))
+			   (declare (fixnum frame))
 			   (funcall (the function process)
 				    sample
 				    frame
-				    ptr))))))
+				    dst
+				    (mod frame divisor)))))))
 		(jack-on-shutdown client
 				  (get-callback '*jack-shutdown-callback*)
 				  (null-pointer))
@@ -257,11 +264,11 @@
 
   ;; software monitoring
   (defun monitor ()
-      (if (jack-running)
-	  (setf
-	   (foreign-slot-value callback-info '(:struct callback-info) 'monitor)
-	   (if
-	    (zerop (foreign-slot-value callback-info '(:struct callback-info)
-				       'monitor))
-	    1
-	    0)))))
+    (if (jack-running)
+	(setf
+	 (foreign-slot-value callback-info '(:struct callback-info) 'monitor)
+	 (if
+	  (zerop (foreign-slot-value callback-info '(:struct callback-info)
+				     'monitor))
+	  1
+	  0)))))

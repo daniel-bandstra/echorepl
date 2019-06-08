@@ -37,5 +37,4 @@ int echorepl_callback(nframes_t, void *);
 
 nframes_t get_sample_frame(callback_info *); // this is blocking, call it first
 sample_t get_sample(callback_info *);
-sample_t *get_out_pointer(callback_info *, nframes_t);
 #endif

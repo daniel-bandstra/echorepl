@@ -34,11 +34,3 @@
   (foreign-funcall "get_sample"
 		   :pointer callback-info
 		   sample-t))
-
-(defun get-out-pointer (callback-info time)
-  (declare (optimize (speed 3) (space 0) (safety 0)
-		     (debug 0) (compilation-speed 0)))
-  (foreign-funcall "get_out_pointer"
-		   :pointer callback-info
-		   nframes-t time
-		   :pointer))

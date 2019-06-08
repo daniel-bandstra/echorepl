@@ -59,6 +59,7 @@ int echorepl_callback(nframes_t count, void *info_ptr) {
 
   for (nframes_t i = 0; i < count; i++) {
     jack_ringbuffer_write(info->frames_buf, (char *)&time, sizeof(nframes_t));
+    info->out_buf[time % info->buffer_size] = 0.0;
     out[i] += info->out_buf[(time + 1) % info->buffer_size];
     time++;
   }
@@ -93,10 +94,3 @@ sample_t get_sample(callback_info *info) {
 
   return sample;
 }
-
-sample_t *get_out_pointer(callback_info *info, nframes_t time) {
-  nframes_t pos = time % info->buffer_size;
-  info->out_buf[pos] = 0.0;
-  return info->out_buf + pos;
-}
-
