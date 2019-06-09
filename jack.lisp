@@ -174,7 +174,6 @@
 	       t)
 	(progn
 	  (setf
-	   jack-running t
 	   callback-info (new-callback-info *jack-buffer-size*)
 	   client (with-foreign-object (status :int)
 		    (jack-client-open name
@@ -224,6 +223,7 @@
 		(jack-on-shutdown client
 				  (get-callback '*jack-shutdown-callback*)
 				  (null-pointer))
+
 		(jack-set-process-callback client
 					   (foreign-symbol-pointer
 					    "echorepl_callback")
@@ -231,7 +231,8 @@
 		(jack-activate client)
 		(connect-outputs)
 		(connect-input 0)
-		(setf *sample-rate* (jack-get-sample-rate client))
+		(setf *sample-rate* (jack-get-sample-rate client)
+		      jack-running t)
 		t)))))
 
   (defun stop-jack ()
