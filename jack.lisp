@@ -174,6 +174,7 @@
 	       t)
 	(progn
 	  (setf
+	   jack-running t
 	   callback-info (new-callback-info *jack-buffer-size*)
 	   client (with-foreign-object (status :int)
 		    (jack-client-open name
@@ -197,7 +198,7 @@
 	   output)
 	  (if (null-pointer-p client)
 	      (progn (format so "~&Could not open Jack.~%")
-		     nil)
+		     (setf jack-running nil))
 	      (let ((dst (foreign-slot-value callback-info
 					     '(:struct callback-info)
 					     'out-buf))
@@ -231,8 +232,7 @@
 		(jack-activate client)
 		(connect-outputs)
 		(connect-input 0)
-		(setf *sample-rate* (jack-get-sample-rate client)
-		      jack-running t)
+		(setf *sample-rate* (jack-get-sample-rate client))
 		t)))))
 
   (defun stop-jack ()
