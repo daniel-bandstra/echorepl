@@ -4,13 +4,13 @@
 ### Introduction
 I originally wanted to make a looper pedal that works with a microphone. As I progressed, I found that what I really wanted was for recording music on a computer to feel as unencumbered as programming Common Lisp with Slime. It turned out the best way to do this was to make the looper a program with Common Lisp and Slime.
 
-### Dependencies:
+### Dependencies
 You'll need Jack for the audio stuff, and libsndfile to save sound files. Other bits of C under the hood are mostly POSIX things that work in Linux, and might work elsewhere. I have found this to work on both CCL and SBCL.
 
-### Installation:
+### Installation
 In the main "echorepl/" directory, run "make" to build two C libraries that live in subdirectories. Install (a link to) "echorepl.asd" however you usually install ASDF packages. If you use Slime Mode, then for extra fun you could have emacs load "echorepl/edit-score.el".
 
-### The Pedal:
+### The Pedal
 ![The Pedal](pedal.png)
 
 I made a pedal to control echorepl. It's an arduino controller with one RGB LED and two momentary stomp switches. The source code for the pedal itself is in the folder "echorepl/pedal/pedal/". It would have been possible to program the pedal as a USB MIDI controller, but loading that onto the arduino seems to be a whole different process. This is a simple program that sends button actions to the serial port as soon as they happen, and accepts messages to light the LED. From my experience, the timing of gestures sent plainly over serial is "good enough."
