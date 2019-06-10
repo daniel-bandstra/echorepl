@@ -20,11 +20,11 @@ You don't need the pedal to try out the software. If you run `(loop-button)` in 
 ### Usage
 To start:
 
-`(require 'echorepl)
-
+```
+(require 'echorepl)
 (in-package :echorepl)
-
-(start-recording)`
+(start-recording)
+```
 
 Control:
 
