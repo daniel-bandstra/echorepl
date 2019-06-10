@@ -19,21 +19,30 @@ You don't need the pedal to try out the software. If you run `(loop-button)` in 
 
 ### Usage
 To start:
+
 `(require 'echorepl)
+
 (in-package :echorepl)
+
 (start-recording)`
+
 Control:
+
 `(loop-button)` or Button A on the stomp pedal: one tap starts recording, the next tap starts looping. If you set *latency* in "echorepl/package.lisp", then layered loops should sync properly.
+
 `(undo-button)` or holding Button B will delete the last loop
+
 `(reverse-time)` or double-tapping button B will run the clock backwards. Audio will play and record in reverse.
 
-`(time-rate new-rate)` with change the playback and recording speed. This is not time-stretching, as in autotune. It's more like running the tape at a different speed. If you double the speed, everything will play an octave higher. If you record at that speed, then when you return the speed to normal what you recorded will be an octave lower. You can also set fractional speeds.
+`(time-rate new-rate)` will change the playback and recording speed. This is not time-stretching, as in autotune. It's more like running the tape at a different speed. If you double the speed, everything will play an octave higher. If you record at that speed, then when you return the speed to normal what you recorded will be an octave lower. You can also set fractional speeds.
 
 ### The Score
-Audio clips are saved in `*clip-store*`. In `*score*` there's an arrangement of those clips. The names of clips are generally keywords, like `:clip571`. All the clips named in *score* are looped at the same time. If you want to make a clip louder, softer, or silent, the "gain" and "mute" functions will help. Gain is measured in decibels, with 100dB being unity gain. In the following example, :clip571 is twice as loud as :clip572, while :clip573 is silent:
+Audio clips are saved in `*clip-store*`. In `*score*` there's an arrangement of those clips. The names of clips are generally keywords, like `:clip571`. All the clips named in `*score*` are looped at the same time. If you want to make a clip louder, softer, or silent, the "gain" and "mute" functions will help. Gain is measured in decibels, with 100dB being unity gain. In the following example, :clip571 is twice as loud as :clip572, while :clip573 is silent:
+
 `((gain 106 :clip571) :clip572 (mute :clip573))`
 
 The "series" function will play one clip after another, instead of looping them at the same time. "Repeat" repeats a clip. So in the following example, :clip488 will play twice, followed by a rest the same length as :clip488:
+
 `((series (repeat 2 :clip488) (mute :clip488)))`
 
 ### Slime Features
