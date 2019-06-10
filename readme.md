@@ -15,7 +15,7 @@ In the main "echorepl/" directory, run "make" to build two C libraries that live
 
 I made a pedal to control echorepl. It's an arduino controller with one RGB LED and two momentary stomp switches. The source code for the pedal itself is in the folder "echorepl/pedal/pedal/". It would have been possible to program the pedal as a USB MIDI controller, but loading that onto the arduino seems to be a whole different process. This is a simple program that sends button actions to the serial port as soon as they happen, and accepts messages to light the LED. From my experience, the timing of gestures sent plainly over serial is "good enough."
 
-You don't need the pedal to try out the software. If you run `(loop-button)` in your repl, it does the same thing as stomping on Button A of the pedal. Likewise with `(undo-button)`, and `(reverse-time)` and holding or double-tapping Button B.
+You don't need the pedal to try out the software. If you run `(loop-button)` in your repl, it does the same thing as stomping on Button A of the pedal. Likewise with `(undo-button)` and `(reverse-time)` and holding or double-tapping Button B.
 
 ### Usage
 To start:
