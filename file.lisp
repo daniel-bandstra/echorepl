@@ -125,24 +125,24 @@
 			 (make-pathname :directory (pathname-directory pathname)))
 	(make-pathname :directory (pathname-directory pathname)))))
 
-(defun save-project (directory &optional (score *score*) (clips *clip-store*))
+(defun save-project (directory)
   (let ((directory (pathname-to-directory directory)))
     (ensure-directories-exist directory)
     (map nil
 	 (lambda (name)
-	   (save-clip (by-name name clips)
+	   (save-clip (by-name name)
 		      (concatenate 'string
 				   (directory-namestring (truename directory))
 				   (symbol-name name)
 				   ".WAV")))
-	 (clip-names-in-score score clips))
+	 (clip-names-in-score))
     (let ((score-path (concatenate 'string
 				   (directory-namestring (truename directory))
 				   "score.lisp")))
       (with-open-file (s (merge-pathnames score-path) :direction :output
 			 :if-exists :overwrite
 			 :if-does-not-exist :create)
-	(prin1 score s)))))
+	(prin1 *score* s)))))
 
 (defmacro load-project (directory
 			&optional (score '*score*) (clips '*clip-store*))

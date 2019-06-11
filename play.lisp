@@ -5,41 +5,41 @@
 
 ;; naming stuff
 
-(defun by-name (name clips)
-  (find name clips
+(defun by-name (name)
+  (find name *clip-store*
 	:test (lambda (name clip)
 		(eq name (name clip)))))
 
-(defun clip-names-in-score (score clips)
+(defun clip-names-in-score ()
   (let ((output nil))
     (labels ((trawl (score)
 	       (cond
-		 ((by-name score clips)
+		 ((by-name score)
 		  (push score output))
 		 ((atom score))
 		 (t
 		  (trawl (car score))
 		  (trawl (cdr score))))))
-      (trawl score)
+      (trawl *score*)
       (delete-duplicates output))))
 
-(defmacro rename (new-name &optional (old-name (name (car *clip-store*))) (score '*score*) (clips '*clip-store*))
-  `(labels
-       ((rename-in-score (score)
-	  (cond
-	    ((atom score)
-	     (if (eq score ,old-name)
-		 ,new-name
-		 score))
-	    (t
-	     (cons (rename-in-score (car score))
-		   (rename-in-score (cdr score)))))))
-     (let ((old-names (mapcar #'name ,clips)))
-       (unless (find ,new-name old-names)
-	 (setf ,score (rename-in-score ,score))
-	 (loop for clip in ,clips do
-	      (if (eq (name clip) ,old-name)
-		  (setf (name clip) ,new-name)))))))
+(defun rename (new-name &optional (old-name (name (car *clip-store*))))
+  (labels
+      ((rename-in-score (score)
+	 (cond
+	   ((atom score)
+	    (if (eq score old-name)
+		new-name
+		score))
+	   (t
+	    (cons (rename-in-score (car score))
+		  (rename-in-score (cdr score)))))))
+    (let ((old-names (mapcar #'name *clip-store*)))
+      (unless (find new-name old-names)
+	(setf *score* (rename-in-score *score*))
+	(loop for clip in *clip-store* do
+	     (if (eq (name clip) old-name)
+		 (setf (name clip) new-name)))))))
 
 (defun string-to-keyword (string)
   (if (eq (elt string 0) ":")
@@ -175,11 +175,11 @@
 		       (debug 0) (compilation-speed 0)))
     (funcall fun dst i time start 0.0)))
 
-(defun score-modulus (score clips)
+(defun score-modulus (score)
   "Find how long SCORE should take to play."
   (cond
-    ((by-name score clips)
-     (modulus (by-name score clips)))
+    ((by-name score)
+     (modulus (by-name score)))
     ((atom score)
      0)
     (t
@@ -187,30 +187,29 @@
        (cycle
 	0)
        (series
-	(apply #'+ (mapcar (lambda (score) (score-modulus score clips))
+	(apply #'+ (mapcar (lambda (score) (score-modulus score))
 			   (cdr score))))
        (repeat
 	(score-modulus (cons 'series (make-list (cadr score)
-						:initial-element (caddr score)))
-		       clips))
+						:initial-element (caddr score)))))
        (otherwise
-	(apply #'max (mapcar (lambda (score) (score-modulus score clips))
+	(apply #'max (mapcar (lambda (score) (score-modulus score))
 			     score)))))))
 
-(defun replace-names-with-playfuns (score clips)
+(defun replace-names-with-playfuns (score)
   (cond
-    ((by-name score clips)
-     (play-fun (by-name score clips)))
+    ((by-name score)
+     (play-fun (by-name score)))
     ((atom score)
      score)
     (t
-     (cons (replace-names-with-playfuns (car score) clips)
-	   (replace-names-with-playfuns (cdr score) clips)))))
+     (cons (replace-names-with-playfuns (car score))
+	   (replace-names-with-playfuns (cdr score))))))
 
-(defun compile-score (score clips)
+(defun compile-score ()
   "Return a function that will CYCLE each element of SCORE altogether."
   (let ((funs (mapcar (lambda (track) (eval (list 'cycle track)))
-		      (replace-names-with-playfuns score clips))))
+		      (replace-names-with-playfuns *score*))))
     (lambda (&rest args)
       (declare (optimize (speed 3) (space 0) (safety 0)
 			 (debug 0) (compilation-speed 0)))

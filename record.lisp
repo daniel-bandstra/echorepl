@@ -90,7 +90,7 @@
 
   (defun play-score ()
     (setf play-fun (thread-do
-		    (compile-score *score* *clip-store*)))
+		    (compile-score)))
     (if *score*
 	(pedal-color 0 8 0)
 	(progn (pedal-color 0 0 0)
