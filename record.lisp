@@ -28,29 +28,14 @@
       (clip-start (number-moment 0))
       (parent-modulus 0)
       (process nil)
-
-      ;; for signal-score-update
-      (emacs-connection (if (find-package 'swank)
-			    swank::*emacs-connection*)))
+      )
   
   (declare (boolean running)
 	   (fixnum state)
 	   (single-float master-gain)
 	   (clip input-clip)
 	   (moment output-start clip-start))
-  
-  (defun signal-score-update ()
-    (if emacs-connection
-	(let ((event `(:ed-rpc-no-wait
-		       ,(swank::symbol-name-for-emacs 'echorepl-update-score)
-		       nil)))
-	  (etypecase emacs-connection
-	    (swank::multithreaded-connection
-	     (swank::send (swank::mconn.control-thread emacs-connection) event))
-	    (swank::singlethreaded-connection
-	     (swank::dispatch-event emacs-connection event))
-	    (null)))))
-  
+    
   ;; recording samples, with interpolation
   (let ((prev-sample 0.0)
 	(prev-moment (number-moment 0)))
@@ -130,6 +115,7 @@
 			       (declare (ignore discard))
 			       (moment frame
 				       (fraction big-offset))))))
+		 (undo-push)
 		 (push new-clip *clip-store*)
 		 (push (name new-clip)
 		       *score*)
@@ -138,10 +124,7 @@
     (setf state (mod (1+ state) 2)))
   
   (defun undo-button ()
-    (if (and (zerop state)
-	     (pop *score*))
-	(pop *clip-store*))
-    (play-score)
+    (undo)
     (setf state 0)
     (format t "~&Undo~%")
     (pedal-blink 12 8 0))
@@ -215,10 +198,3 @@
 
   (defun stop-recording ()
     (setf running nil)))
-
-(defun reset-score ()
-  (setf *clip-store* nil
-	*score* nil)
-  (reset-tick)
-  (play-score)
-  (format t "~&Reset~%"))

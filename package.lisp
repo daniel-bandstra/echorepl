@@ -11,6 +11,7 @@
    loop-button
    undo-button
    play-score
+   update-score
    time-rate
    reverse-time
    connect-input

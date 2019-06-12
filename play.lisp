@@ -1,8 +1,5 @@
 (in-package :echorepl)
 
-(defvar *clip-store* nil)
-(defvar *score* nil)
-
 ;; naming stuff
 
 (defun by-name (name)

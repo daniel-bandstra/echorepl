@@ -50,8 +50,8 @@ in Lisp when committed with \\[echorepl-edit-score-commit]."
 
 (defslimefun echorepl-update-score (_)
   (slime-eval-async `(swank:value-for-editing "*score*")
-		    #'echorepl-update-score-callback
-		    "echorepl"))
+    #'echorepl-update-score-callback
+    "echorepl"))
 
 (defun echorepl-edit-score-commit ()
   "Commit the edited score to the Lisp image.
@@ -59,8 +59,10 @@ in Lisp when committed with \\[echorepl-edit-score-commit]."
   (interactive)
   (let ((value (buffer-substring-no-properties (point-min) (point-max))))
     (lexical-let ((buffer (current-buffer)))
-      (slime-eval-async `(swank:commit-edited-value "*score*"
-						    ,value)
+      (slime-eval-async `(cl:progn
+			   (echorepl::undo-push)
+			   (swank:commit-edited-value "*score*"
+						      ,value))
 	(lambda (_)
 	  (slime-eval-async `(echorepl::play-score)))))))
 

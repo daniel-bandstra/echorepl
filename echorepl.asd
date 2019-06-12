@@ -13,6 +13,7 @@
 	       (:file "time")
 	       (:file "pedal")
 	       (:file "clip")
+	       (:file "undo")
 	       (:file "play")
 	       (:file "record")
 	       (:file "file")))
