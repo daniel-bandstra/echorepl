@@ -27,10 +27,10 @@
 
 (defparameter *sample-rate* 44100) ;; this also gets set when Jack starts up
 
-(defparameter *latency* 948)
+(defparameter *latency* 472)
 ;; *LATENCY* is a number of whole samples or frames. You can measure this
 ;; with the jack_delay utility and a patch cable.
-(defparameter *jack-buffer-size* 16384)
+(defparameter *jack-buffer-size* #.(expt 2 16))
 
 (defparameter *pedal-port* "/dev/ttyUSB0")
 
