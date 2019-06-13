@@ -30,7 +30,7 @@
 (defparameter *latency* 472)
 ;; *LATENCY* is a number of whole samples or frames. You can measure this
 ;; with the jack_delay utility and a patch cable.
-(defparameter *jack-buffer-size* #.(expt 2 16))
+(defparameter *jack-buffer-size* #.(expt 2 15))
 
 (defparameter *pedal-port* "/dev/ttyUSB0")
 
