@@ -3,11 +3,11 @@
 (defvar *clip-store* nil)
 (defvar *score* nil)
 
-(defvar *clip-store-undo* nil)
-(defvar *score-undo* nil)
+(defvar *undo-clip-store* nil)
+(defvar *undo-score* nil)
 
-(defvar *clip-store-redo* nil)
-(defvar *score-redo* nil)
+(defvar *redo-clip-store* nil)
+(defvar *redo-score* nil)
 
 (let ((emacs-connection (if (find-package 'swank)
 			    swank::*emacs-connection*)))
@@ -24,21 +24,21 @@
 	    (null))))))
 
 (defun undo-push ()
-  (push *clip-store* *clip-store-undo*)
-  (push *score* *score-undo*))
+  (push *clip-store* *undo-clip-store*)
+  (push *score* *undo-score*))
 
 (defun undo-pop ()
-  (setf *clip-store* (pop *clip-store-undo*)
-	*score* (pop *score-undo*))
+  (setf *clip-store* (pop *undo-clip-store*)
+	*score* (pop *undo-score*))
   (signal-score-update))
 
 (defun redo-push ()
-  (push *clip-store* *clip-store-redo*)
-  (push *score* *score-redo*))
+  (push *clip-store* *redo-clip-store*)
+  (push *score* *redo-score*))
 
 (defun redo-pop ()
-  (setf *clip-store* (pop *clip-store-redo*)
-	*score* (pop *score-redo*))
+  (setf *clip-store* (pop *redo-clip-store*)
+	*score* (pop *redo-score*))
   (signal-score-update))
 
 (declaim (ftype (function ()) play-score))
@@ -47,22 +47,22 @@
   (setf *score* nil)
   (play-score)
   (setf *clip-store* nil
-	*clip-store-undo* nil
-	*clip-store-redo* nil
-	*score-undo* nil
-	*score-redo* nil)
+	*undo-clip-store* nil
+	*redo-clip-store* nil
+	*undo-score* nil
+	*redo-score* nil)
   (reset-tick)
   (format t "~&Reset~%")
   (signal-score-update))
 
 (defun undo ()
-  (if (and *clip-store-undo* *score-undo*)
+  (if (and *undo-clip-store* *undo-score*)
       (progn (redo-push)
 	     (undo-pop)))
   (play-score))
 
 (defun redo ()
-  (if (and *clip-store-redo* *score-redo*)
+  (if (and *redo-clip-store* *redo-score*)
       (progn (undo-push)
 	     (redo-pop)))
   (play-score))
