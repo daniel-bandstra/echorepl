@@ -15,6 +15,16 @@ in Lisp when committed with \\[echorepl-edit-score-commit]."
 
 (global-set-key (kbd "C-c e") 'echorepl-edit-score)
 (global-set-key (kbd "C-c r") 'echorepl-rename-clip)
+(global-set-key (kbd "C-c z") 'echorepl-undo)
+(global-set-key (kbd "C-c M-z") 'echorepl-redo)
+
+(defun echorepl-undo ()
+  (interactive)
+  (slime-eval-async `(echorepl:undo)))
+
+(defun echorepl-redo ()
+  (interactive)
+  (slime-eval-async `(echorepl:redo)))
 
 (define-minor-mode echorepl-edit-score-mode
   "Mode for editing echorepl::*score*"
@@ -60,9 +70,9 @@ in Lisp when committed with \\[echorepl-edit-score-commit]."
   (let ((value (buffer-substring-no-properties (point-min) (point-max))))
     (lexical-let ((buffer (current-buffer)))
       (slime-eval-async `(cl:progn
-			   (echorepl::undo-push)
-			   (swank:commit-edited-value "*score*"
-						      ,value))
+			  (echorepl::undo-push)
+			  (swank:commit-edited-value "*score*"
+						     ,value))
 	(lambda (_)
 	  (slime-eval-async `(echorepl::play-score)))))))
 
