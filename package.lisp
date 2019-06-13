@@ -10,6 +10,8 @@
    reset-score
    loop-button
    undo-button
+   undo
+   redo
    play-score
    update-score
    time-rate
