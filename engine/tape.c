@@ -24,21 +24,19 @@ void pos_play (sample_t *dst, nframes_t i,
 	       struct tape *src, int64_t pos, sample_t gain) {
   pos += src->start_pos;
 
-  if (gain != 0.0) {
-    if (pos < src->fadein_start_pos) {
-    } else if (pos < src->fadein_end_pos) {
-      dst[i] += (src->samples[pos] *
-		      ((pos - src->fadein_start_pos) /
-		       src->splice) *
-		      gain);
-    } else if (pos < src->fadeout_start_pos) {
-      dst[i] += (src->samples[pos] *
-		      gain);
-    } else if (pos < src->fadeout_end_pos) {
-      dst[i] += (src->samples[pos] *
-		      ((src->fadeout_end_pos - pos) /
-		       src->splice) *
-		      gain);
-    }
+  if (pos < src->fadein_start_pos) {
+  } else if (pos < src->fadein_end_pos) {
+    dst[i] += (src->samples[pos] *
+	       ((pos - src->fadein_start_pos) /
+		src->splice) *
+	       gain);
+  } else if (pos < src->fadeout_start_pos) {
+    dst[i] += (src->samples[pos] *
+	       gain);
+  } else if (pos < src->fadeout_end_pos) {
+    dst[i] += (src->samples[pos] *
+	       ((src->fadeout_end_pos - pos) /
+		src->splice) *
+	       gain);
   }
 }

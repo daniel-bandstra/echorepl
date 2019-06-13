@@ -1,6 +1,6 @@
 (in-package :echorepl)
 
-;; naming stuff
+;; clip naming stuff
 
 (defun by-name (name)
   (find name *clip-store*
@@ -47,98 +47,162 @@
   (rename (string-to-keyword new-name)
 	  (string-to-keyword old-name)))
 
-;; clip-playing functions
+;; A link is one in a chain of structs that play various clips.
+;; Start/end times include splices. All times are normalized, such that the start
+;; of the clip is at (number-moment 0)
 
-(defun play-null (&rest args)
-  "Don't do anything."
+;; In what follows "link" is a link, "chain" is a link that may or may not have a
+;; next-link
+
+(defstruct (link (:conc-name nil)
+		 (:constructor internal-make-link))
+  (clip (empty-clip)
+	:type clip)
+
+  (this-offset (number-moment 0)
+	       :type moment)
+  (this-start (number-moment 0)
+	      :type moment)
+  (this-end (number-moment 0)
+	    :type moment)
+  (this-modulus 0
+		:type fixnum)
+
+  next-link
+  (next-start (number-moment 0)
+	      :type moment)
+  (next-modulus 0
+		:type fixnum)
+
+  prev-link
+  (prev-end (number-moment 0)
+	    :type moment)
+  (prev-modulus 0
+		:type fixnum)
+
+  (set-mute nil
+	    :type boolean)
+  (set-gain 1.0
+	    :type single-float))
+
+(defun make-link (clip)
+  (internal-make-link :clip clip
+		      :this-offset (offset clip)
+		      :this-start (moment+ (offset clip)
+					   (number-moment (- (fadein-start-pos clip)
+							     (clip-start-pos clip))))
+		      :this-end (moment+ (offset clip)
+					 (number-moment (- (fadeout-end-pos clip)
+							   (clip-start-pos clip))))
+		      :this-modulus (modulus clip)))
+
+;; Arranging links and chains
+
+(defun chain-links (a b)
+  "Set link B to play after link A"
+  (setf (next-link a) b
+	(next-start a) (moment+ (this-start b)
+				(number-moment (this-modulus a)))
+	(next-modulus a) (this-modulus b)
+	(prev-link b) a
+	(prev-end b) (moment- (this-end a)
+			      (number-moment (this-modulus a)))
+	(prev-modulus b) (this-modulus a))
+  a)
+
+(defun last-link (chain)
+  "Return the last link in CHAIN"
+  (if (null (next-link chain))
+      chain
+      (last-link (next-link chain))))
+
+(defun cycle (chain)
+  "Make CHAIN circular"
+  (chain-links (last-link chain) chain)
+  chain)
+
+(defun series (&rest chains)
+  "Make a number of CHAINS into one CHAIN"
+  (if (cdr chains)
+      (chain-links (car chains)
+		   (apply #'series (cdr chains)))
+      (car chains)))
+
+(defun copy-chain (chain)
+  "Make a chain of copies of the links in CHAIN"
+  (if (next-link chain)
+      (chain-links (copy-link chain)
+		   (copy-chain (next-link chain)))
+      (copy-link chain)))
+
+(defun repeat (times chain)
+  "Make a chain of CHAIN a number of TIMES in a row"
+  (apply #'series
+   (loop for i below times
+      collect (copy-chain chain))))
+
+;; Playing links and chains
+
+(let ((elapsed (number-moment 0))
+      (gain-b 0.0))
+  (defun play-link (dst i link moment gain)
+    "Play LINK"
+    (declare (optimize (speed 3) (space 0) (safety 0)
+		       (debug 1) (compilation-speed 0))
+	     (single-float gain))
+    (unless (set-mute link)
+      (if (and (moment< (this-start link) moment)
+	       (moment< moment (this-end link)))
+	  (progn
+	    (setf elapsed (moment- moment (this-offset link))
+		  gain-b (* gain (fraction elapsed)))
+	    (pos-play dst i (tape (clip link))
+		      (frame elapsed) (* (set-gain link)
+					 (- gain gain-b)))
+	    (pos-play dst i (tape (clip link))
+		      (the fixnum (1+ (frame elapsed)))
+		      (* (set-gain link) gain-b)))))))
+
+(defun play-chain (dst i chain moment gain)
+  "Play CHAIN"
   (declare (optimize (speed 3) (space 0) (safety 0)
-		     (debug 0) (compilation-speed 0))
-	   (ignore args)))
+		     (debug 1) (compilation-speed 0)))
+  (play-link dst i chain moment gain)
+  (cond
+    ((and (next-link chain)
+	  (moment< (next-start chain) moment))
+     (decf (frame moment) (this-modulus chain))
+     (play-link dst i (next-link chain) moment gain))
+    ((and (prev-link chain)
+	  (moment< moment (prev-end chain)))
+     (incf (frame moment) (prev-modulus chain))
+     (play-link dst i (prev-link chain) moment gain))))
 
-(defun play-fun (clip)
-  (declare (clip clip))
-  "Return a function that plays CLIP once, and returns CLIP's modulus"
-  (let ((tape (tape clip))
-	(offset (offset clip))
-	(modulus (modulus clip))
-	(elapsed (number-moment 0))
-	(pos-a 0)
-	(pos-b 0)
-	(gain-b 0.0))
-    (declare (moment elapsed)
-	     (fixnum pos-a pos-b)
-	     (single-float gain-b))
-    (lambda (dst i time start gain)
-      (declare (single-float gain)
-	       (optimize (speed 3) (space 0) (safety 0)
-			 (debug 0) (compilation-speed 0)))
-      (setf elapsed (moment- time (moment+ start offset))
-	    pos-a (frame elapsed)
-	    pos-b (1+ pos-a)
-	    gain-b (* gain (fraction elapsed)))
-      (pos-play dst i tape pos-a (- gain gain-b))
-      (pos-play dst i tape pos-b gain-b)
-      modulus)))
-
-(defun cycle (fun)
-  "Return a function that plays FUN repeatedly"
-  (let ((modulus 0)
-	(prev-start (number-moment 0))
+(defun play-fun (chain)
+  "Return a function to play CHAIN"
+  (let ((first-run t)
 	(this-start (number-moment 0))
-	(next-start (number-moment 0))
-	(first-run t))
-    (declare (function fun)
-	     (fixnum modulus)
-	     (moment prev-start this-start next-start)
-	     (boolean first-run))
-    (lambda (dst i time start gain)
+	(next-start (number-moment 0)))
+    (lambda (dst i time first-start gain)
       (declare (optimize (speed 3) (space 0) (safety 0)
 			 (debug 0) (compilation-speed 0)))
+      (if first-run
+	  (setf this-start (copy-moment first-start)
+		next-start (moment+ first-start
+				    (number-moment (this-modulus chain)))
+		first-run nil))
+      (play-chain dst i chain (moment- time this-start) gain)
       (cond
-	(first-run
-	 (setf modulus (funcall fun dst i time start gain) ;; set start times
-	       prev-start (copy-structure start)
-	       this-start (moment (+ (frame prev-start) modulus)
-				  (fraction prev-start))
-	       next-start (moment (+ (frame this-start) modulus)
-				  (fraction this-start))
-	       first-run nil))
-	((moment< next-start time)
-	 (shiftf (frame prev-start) ;; shift start-times forward
-		 (frame this-start)
-		 (frame next-start)
-		 (+ (frame next-start) modulus)))
-	((moment< time this-start)
-	 (shiftf (frame next-start) ;; shift start-times backwards
-		 (frame this-start)
-		 (frame prev-start)
-		 (- (frame prev-start) modulus))))
-      (funcall fun dst i time prev-start gain)
-      (funcall fun dst i time this-start gain)
-      (funcall fun dst i time next-start gain))))
-
-(defun series (&rest play-funs)
-  "Return a function that plays the functions in PLAY-FUN sequentially."
-  (let ((sub-start (number-moment 0)))
-    (declare (moment sub-start))
-    (lambda (dst i time start gain)
-      (declare (moment time start)
-	       (single-float gain)
-	       (optimize (speed 3) (space 0) (safety 0)
-			 (debug 0) (compilation-speed 0)))
-      (setf (frame sub-start) (frame start)
-	    (fraction sub-start) (fraction start))
-      (loop
-	 for fun in play-funs do
-	   (incf (frame sub-start)
-		 (the fixnum
-		      (funcall (the function fun) dst i time sub-start gain)))
-	 finally
-	   (return (the fixnum (- (frame sub-start) (frame start))))))))
-
-(defun repeat (times fun)
-  "Return a function that plays FUN a number of TIMES in a row."
-  (apply #'series (make-list times :initial-element fun)))
+	((and (prev-link chain)
+	      (moment< time this-start))
+	 (decf (frame next-start) (this-modulus chain))
+	 (decf (frame this-start) (prev-modulus chain))
+	 (setf chain (prev-link chain)))
+	((and (next-link chain)
+	      (moment< next-start time))
+	 (incf (frame next-start) (next-modulus chain))
+	 (incf (frame this-start) (this-modulus chain))
+	 (setf chain (next-link chain)))))))
 
 ;; Volume Changing Functions
 
@@ -149,28 +213,19 @@
 		   20))
 	  'single-float))
 
-(defun gain (db fun)
-  "Return a function that plays FUN, with a gain of DB (in decibels)."
-  (declare (real db)
-	   (function fun))
-  (let ((new-gain (db-gain db)))
-    (declare (single-float new-gain))
-    (lambda (dst i time start old-gain)
-      (declare (moment time start)
-	       (single-float old-gain)
-	       (optimize (speed 3) (space 0) (safety 0)
-			 (debug 0) (compilation-speed 0)))
-      (funcall fun dst i time start (* new-gain old-gain)))))
+(defun gain (db chain)
+  (setf (set-gain chain) (db-gain db))
+  (if (next-link chain)
+      (gain db (next-link chain)))
+  chain)
 
-(defun mute (fun)
-  "Return a function that doesn't play FUN, but passes on its timing info."
-  (declare (function fun))
-  (lambda (dst i time start gain)
-    (declare (moment time start)
-	     (ignore gain)
-	     (optimize (speed 3) (space 0) (safety 0)
-		       (debug 0) (compilation-speed 0)))
-    (funcall fun dst i time start 0.0)))
+(defun mute (chain)
+  (setf (set-mute chain) t)
+  (if (next-link chain)
+      (mute (next-link chain)))
+  chain)
+
+;; Compiling The Score
 
 (defun score-modulus (score)
   "Find how long SCORE should take to play."
@@ -193,22 +248,27 @@
 	(apply #'max (mapcar (lambda (score) (score-modulus score))
 			     score)))))))
 
-(defun replace-names-with-playfuns (score)
+(defun replace-names-with-links (score)
   (cond
     ((by-name score)
-     (play-fun (by-name score)))
+     (make-link (by-name score)))
     ((atom score)
      score)
     (t
-     (cons (replace-names-with-playfuns (car score))
-	   (replace-names-with-playfuns (cdr score))))))
+     (cons (replace-names-with-links (car score))
+	   (replace-names-with-links (cdr score))))))
 
 (defun compile-score ()
   "Return a function that will CYCLE each element of SCORE altogether."
-  (let ((funs (mapcar (lambda (track) (eval (list 'cycle track)))
-		      (replace-names-with-playfuns *score*))))
-    (lambda (&rest args)
+  (let ((funs (mapcar (lambda (track) (play-fun (eval (list 'cycle track))))
+		      (replace-names-with-links *score*))))
+    (lambda (dst i time start gain)
       (declare (optimize (speed 3) (space 0) (safety 0)
 			 (debug 0) (compilation-speed 0)))
       (loop for fun in funs do
-	   (apply (the function fun) args)))))
+	   (funcall (the function fun) dst i time start gain)))))
+
+(defun play-null (&rest args)
+  (declare (optimize (speed 3) (space 0) (safety 0)
+		     (debug 0) (compilation-speed 0))
+	   (ignore args)))

@@ -77,7 +77,8 @@
     (setf play-fun (thread-do
 		    (compile-score)))
     (if *score*
-	(pedal-color 0 8 0)
+	(progn (pedal-color 0 8 0)
+	       (setf parent-modulus (score-modulus *score*)))
 	(progn (pedal-color 0 0 0)
 	       (setf parent-modulus 0)))
     (signal-score-update))
@@ -85,7 +86,8 @@
   (defun set-play-fun (&optional fun)
     (if fun
 	(setf play-fun fun)
-	(play-score)))
+	(play-score)
+	))
   
   ;; Looper Control Functions
   (defun loop-button (&optional (time (now-moment)))
