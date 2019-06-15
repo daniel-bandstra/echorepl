@@ -105,8 +105,7 @@
 	       (progn
 		 (if (zerop parent-modulus)
 		     (setf output-start (if (moment< time clip-start)
-					    time clip-start)
-			   parent-modulus (modulus new-clip))
+					    time clip-start))
 		     (setf (offset new-clip)
 			   (let ((big-offset (moment- (if (moment< time clip-start)
 							  time
