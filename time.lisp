@@ -87,6 +87,7 @@
     t)
   
   (defun tick (frame)
+    "Update and return the time"
     (declare (fixnum frame)
 	     (optimize (speed 3) (space 0) (safety 0)
 		       (debug 0) (compilation-speed 0)))
@@ -99,6 +100,10 @@
 		    (moment+ now rate))
 	    (aref frame-moment-array pos) now)))
 
+  (defun now ()
+    "Return the current time"
+    now)
+  
   (defun reverse-time ()
     (setf reverse (not reverse)))
 

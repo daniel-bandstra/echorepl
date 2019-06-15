@@ -45,6 +45,16 @@
 		   :pointer dst nframes-t i
 		   :pointer tape :long pos :float gain :void))
 
+(defun raw-copy (dst i tape moment)
+  (declare (fixnum i)
+	   (moment moment)
+	   (optimize (speed 3) (space 0) (safety 0)
+		     (debug 0) (compilation-speed 0)))
+  (foreign-funcall "raw_copy"
+		   :pointer dst nframes-t i
+		   :pointer tape
+		   :long (frame moment) :float (fraction moment)))
+
 ;; a "clip" is tape plus some timing information
 
 (defun new-name (prefix)
@@ -65,7 +75,7 @@
   (fudge-factor *default-fudge-factor* :type fixnum)
   
   ;; tape
-  (tape (null-pointer)) ;; a pointer to a struct
+  tape
   
   ;; synchronization
   (offset (number-moment 0) :type moment)
@@ -154,80 +164,71 @@
 
 ;; create clip
 
-(defun input-play-fun (clip)
-  (declare (clip clip))
-  (let ((tape (tape clip))
-	(tape-len (tape-len clip)))
-    (declare (fixnum tape-len))
-    (lambda (dst i time)
-      (declare (moment time)
-	       (optimize (speed 3) (space 0) (safety 0)
-			 (debug 0) (compilation-speed 0)))
-      (let ((pos-a (the fixnum (mod (frame time) tape-len)))
-	    (pos-b (the fixnum (mod (1+ (frame time)) tape-len))))
-	(pos-play dst i tape pos-a (- 1.0 (fraction time)))
-	(pos-play dst i tape pos-b (fraction time))))))
-
 (defun create-clip (input-clip
 		    start
 		    end
 		    parent-modulus)
   (declare (clip input-clip)
 	   (moment start end)
-	   (fixnum parent-modulus))
-  (if (moment< start end)
-      ;; clock is going forward
-      (let* ((edge-time (number-moment (+ *default-fudge-factor*
-					  *default-half-splice*)))
-	     (clip-start (moment- start edge-time))
-	     (moment-len (moment- end start))
-	     (clip-len (+ (frame moment-len)
-			  (if (< (fraction moment-len) 0.5) 0 1)))
-	     (first-chunk (+ clip-len
-			     *default-half-splice*
-			     *default-fudge-factor*))
+	   (fixnum parent-modulus)
+	   (optimize (speed 3) (space 0) (safety 0)
+		     (debug 0) (compilation-speed 0)))
+  (let* ((edge-space (+ (the fixnum *default-half-splice*)
+			(the fixnum *default-fudge-factor*)))
+	 (edge-time (number-moment edge-space)))
+    (declare (fixnum edge-space)
+	     (moment edge-time))
+    (if (moment< start end)
+	;; clock is going forward
+	(let*
+	    ((clip-start (moment- start edge-time))
+	     (clip-end (moment+ end edge-time))
+	     (moment-length (moment- end start))
+	     (clip-len (+ (frame moment-length)
+			  (if (< (fraction moment-length) 0.5) 0 1)))
+	     (first-chunk (+ clip-len edge-space))
 	     (new-clip (make-clip :clip-len clip-len
 				  :parent-modulus parent-modulus)))
-	(clip-setup new-clip)
-	(let ((input-play-fun (input-play-fun input-clip))
-	      (dst (samples new-clip)))
-	  (loop for i fixnum below first-chunk do
-	       (progn
-		 (funcall input-play-fun dst i clip-start)
-		 (incf (frame clip-start))))
-	  (make-thread
-	   (lambda ()
-	     (sleep (/ first-chunk *sample-rate*))
-	     (loop for i fixnum from first-chunk below (tape-len new-clip) do
-		  (progn
-		    (funcall input-play-fun dst i clip-start)
-		    (incf (frame clip-start)))))))
-	new-clip)
-      ;; clock is going backwards
-      (let* ((end (copy-moment end))
-	     (edge-time (number-moment (+ *default-fudge-factor*
-					  *default-half-splice*)))
-	     (clip-start (moment- end edge-time))
-	     (moment-len (moment- start end))
-	     (clip-len (+ (frame moment-len)
-			  (if (< (fraction moment-len) 0.5) 0 1)))
-	     (first-spot (+  *default-half-splice*
-			     *default-fudge-factor*))
-	     (new-clip (make-clip :clip-len clip-len
-				  :parent-modulus parent-modulus)))
-	(clip-setup new-clip)
-	(let ((input-play-fun (input-play-fun input-clip))
-	      (dst (samples new-clip)))
-	  (loop
-	     for i fixnum from first-spot below (tape-len new-clip) do
-	       (progn
-		 (funcall input-play-fun dst i end)
-		 (incf (frame end))))
-	  (make-thread
-	   (lambda ()
-	     (sleep (/ (+ first-spot clip-len) *sample-rate*))
-	     (loop for i fixnum below first-spot do
-		  (progn
-		    (funcall input-play-fun dst i clip-start)
-		    (incf (frame clip-start)))))))
-	new-clip)))
+	  (declare (fixnum clip-len first-chunk))
+	  (clip-setup new-clip)
+	  (let ((dst (samples new-clip))
+		(tape (tape input-clip)))
+	    (loop for i fixnum below first-chunk do
+		 (progn
+		   (raw-copy dst i tape clip-start)
+		   (incf (frame clip-start))))
+	    (make-thread
+	     (lambda ()
+	       (loop while (moment< (now) clip-end) do
+		    (sleep 0.1))
+	       (loop for i fixnum from first-chunk below (tape-len new-clip) do
+		    (progn
+		      (raw-copy dst i tape clip-start)
+		      (incf (frame clip-start)))))))
+	  new-clip)
+	;; otherwise clock is going backwards
+	(let* ((end (copy-moment end))
+	       (clip-start (moment- end edge-time))
+	       (clip-end (moment+ start edge-time))
+	       (moment-len (moment- start end))
+	       (clip-len (+ (frame moment-len)
+			    (if (< (fraction moment-len) 0.5) 0 1)))
+	       (new-clip (make-clip :clip-len clip-len
+				    :parent-modulus parent-modulus)))
+	  (clip-setup new-clip)
+	  (let ((dst (samples new-clip))
+		(tape (tape input-clip)))
+	    (loop
+	       for i fixnum from edge-space below (tape-len new-clip) do
+		 (progn
+		   (raw-copy dst i tape end)
+		   (incf (frame end))))
+	    (make-thread
+	     (lambda ()
+	       (loop while (moment< clip-end (now)) do
+		    (sleep 0.1))
+	       (loop for i fixnum below edge-space do
+		    (progn
+		      (raw-copy dst i tape clip-start)
+		      (incf (frame clip-start)))))))
+	  new-clip))))

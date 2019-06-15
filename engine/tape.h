@@ -27,4 +27,6 @@ void delete_tape(struct tape *);
 
 void pos_play (sample_t *, nframes_t, struct tape *, int64_t, sample_t);
 
+void raw_copy (sample_t *, nframes_t, struct tape *, int64_t, sample_t);
+
 #endif
