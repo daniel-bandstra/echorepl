@@ -43,6 +43,6 @@ void pos_play (sample_t *dst, nframes_t i,
 
 void raw_copy (sample_t *dst, nframes_t i, struct tape *src,
 	       int64_t pos, sample_t fraction) {
-  dst[i] = src->samples[pos % src->tape_len] * (1.0 - fraction);
-  dst[i] = src->samples[(pos + 1) % src->tape_len] * fraction;
+  dst[i] = src->samples[pos % src->tape_len] * (1.0 - fraction) +
+    src->samples[(pos + 1) % src->tape_len] * fraction;
 }
